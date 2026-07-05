@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DndContext, type DragEndEvent, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { ArrowRight, Coffee, Flag, Shuffle } from 'lucide-react';
+import { ArrowRight, Coffee, Flag, Hand, Shuffle } from 'lucide-react';
 import type { GameState, Round } from '../types';
 import { ScreenLayout } from '../components/ui/ScreenLayout';
 import { Button } from '../components/ui/Button';
 import { InlineAlert } from '../components/ui/InlineAlert';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Modal } from '../components/ui/Modal';
 import { CourtMatchCard } from '../components/CourtMatchCard';
 import { RestingTray } from '../components/RestingTray';
 import { PlayerChip } from '../components/PlayerChip';
@@ -43,9 +44,16 @@ export function RoundPage({
 }: RoundPageProps) {
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [rerollChoiceOpen, setRerollChoiceOpen] = useState(false);
+  const [manualHintVisible, setManualHintVisible] = useState(false);
 
   const lineupEditable = currentRound.matches.every((m) => m.winner === null);
   const totalPlaying = state.players.length - currentRound.restingPlayerIds.length;
+
+  // A new round starts fresh — don't carry the manual-editing hint over from the last one.
+  useEffect(() => {
+    setManualHintVisible(false);
+  }, [currentRound.id]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -102,11 +110,17 @@ export function RoundPage({
           {lineupEditable && (
             <button
               type="button"
-              onClick={onReroll}
+              onClick={() => setRerollChoiceOpen(true)}
               className="w-full flex items-center justify-center gap-1.5 text-court-dark text-sm font-semibold py-1 active:opacity-70"
             >
-              <Shuffle size={14} /> Перегенерувати пари
+              <Shuffle size={14} /> Змінити пари
             </button>
+          )}
+
+          {manualHintVisible && lineupEditable && (
+            <InlineAlert tone="info" onDismiss={() => setManualHintVisible(false)}>
+              Перетягніть гравця на іншого — між кортами або з тими, хто відпочиває — щоб поміняти їх місцями.
+            </InlineAlert>
           )}
 
           <div className="space-y-3">
@@ -116,7 +130,8 @@ export function RoundPage({
                 match={match}
                 players={state.players}
                 gameMode={state.settings.gameMode}
-                editable={lineupEditable}
+                lineupEditable={lineupEditable}
+                scoreEditable={!currentRound.completed}
                 onSubmitScore={onSubmitScore}
               />
             ))}
@@ -160,7 +175,64 @@ export function RoundPage({
         }}
         onCancel={() => setConfirmReset(false)}
       />
+
+      <RerollChoiceModal
+        open={rerollChoiceOpen}
+        onClose={() => setRerollChoiceOpen(false)}
+        onChooseRandom={() => {
+          setRerollChoiceOpen(false);
+          onReroll();
+        }}
+        onChooseManual={() => {
+          setRerollChoiceOpen(false);
+          setManualHintVisible(true);
+        }}
+      />
     </ScreenLayout>
+  );
+}
+
+interface RerollChoiceModalProps {
+  open: boolean;
+  onClose: () => void;
+  onChooseRandom: () => void;
+  onChooseManual: () => void;
+}
+
+function RerollChoiceModal({ open, onClose, onChooseRandom, onChooseManual }: RerollChoiceModalProps) {
+  return (
+    <Modal open={open} onClose={onClose}>
+      <p className="font-display font-extrabold text-lg text-ink mb-1.5">Як перерозподілити пари?</p>
+      <p className="text-sm text-ink-muted leading-relaxed mb-5">Оберіть спосіб зміни пар цього раунду.</p>
+      <div className="space-y-2.5">
+        <button
+          type="button"
+          onClick={onChooseRandom}
+          className="w-full flex items-center gap-3 rounded-2xl border-2 border-line p-3.5 text-left active:border-court active:bg-court-light transition-colors"
+        >
+          <div className="h-11 w-11 rounded-xl bg-court-light text-court-dark flex items-center justify-center shrink-0">
+            <Shuffle size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-display font-bold text-[15px] text-ink">Випадково</p>
+            <p className="text-xs text-ink-muted mt-0.5 leading-snug">Алгоритм підбере нові пари автоматично</p>
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={onChooseManual}
+          className="w-full flex items-center gap-3 rounded-2xl border-2 border-line p-3.5 text-left active:border-court active:bg-court-light transition-colors"
+        >
+          <div className="h-11 w-11 rounded-xl bg-info-light text-info flex items-center justify-center shrink-0">
+            <Hand size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-display font-bold text-[15px] text-ink">Вручну</p>
+            <p className="text-xs text-ink-muted mt-0.5 leading-snug">Перетягніть гравців самостійно, щоб поміняти їх місцями</p>
+          </div>
+        </button>
+      </div>
+    </Modal>
   );
 }
 

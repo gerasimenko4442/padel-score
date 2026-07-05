@@ -22,7 +22,7 @@ function createNewGameState(name: string): GameState {
     fixedTeams: [],
     rounds: [],
     currentRoundIndex: -1,
-    settings: { gameMode: 'random', courtsCount: 2, genderRulesEnabled: false },
+    settings: { gameMode: 'random', courtsCount: 1, genderRulesEnabled: false },
     status: 'setup',
     createdAt: now,
     updatedAt: now,

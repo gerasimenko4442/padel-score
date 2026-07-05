@@ -6,7 +6,7 @@ import type { Round, Team } from '../types';
 describe('computeRandomModeRotation', () => {
   it('sends exactly enough players to the sidelines to fill whole courts', () => {
     const players = makePlayers(10);
-    const result = computeRandomModeRotation(players, 2, undefined); // 2 courts = 8 slots
+    const result = computeRandomModeRotation(players, 2, undefined, false); // 2 courts = 8 slots
 
     expect(result.playingIds).toHaveLength(8);
     expect(result.restingIds).toHaveLength(2);
@@ -18,7 +18,7 @@ describe('computeRandomModeRotation', () => {
 
   it('never rests more players than necessary when everyone fits', () => {
     const players = makePlayers(8);
-    const result = computeRandomModeRotation(players, 2, undefined);
+    const result = computeRandomModeRotation(players, 2, undefined, false);
     expect(result.restingIds).toHaveLength(0);
     expect(result.playingIds).toHaveLength(8);
   });
@@ -42,7 +42,7 @@ describe('computeRandomModeRotation', () => {
     players[4]!.stats.currentPlayStreak = 1;
     players[5]!.stats.currentPlayStreak = 1;
 
-    const result = computeRandomModeRotation(players, 1, previousRound);
+    const result = computeRandomModeRotation(players, 1, previousRound, false);
 
     // The two who just rested should now be playing, not resting again.
     expect(result.playingIds).toContain(players[0]!.id);
@@ -52,8 +52,30 @@ describe('computeRandomModeRotation', () => {
   it('always honors a voluntary rest request', () => {
     const players = makePlayers(8);
     players[0]!.wantsRestNextRound = true;
-    const result = computeRandomModeRotation(players, 2, undefined);
+    const result = computeRandomModeRotation(players, 2, undefined, false);
     expect(result.restingIds).toContain(players[0]!.id);
+  });
+
+  it('keeps the resting group gender-splittable when gender rules are enabled', () => {
+    // 4 men + 2 women; 1 court (4 slots) means 2 must rest. With 4 men total
+    // (even), the resting group must contain an EVEN number of men for the
+    // remaining 4 players to still form a valid MM/FF/Mixed court.
+    const males = makePlayers(4, 'male');
+    const females = makePlayers(2, 'female');
+    const players = [...males, ...females];
+
+    // Bias fairness so the gender-blind choice would be "1 man + 1 woman"
+    // (an odd, invalid number of resting men).
+    players[0]!.stats.currentPlayStreak = 5; // males[0]: top priority to rest
+    players[4]!.stats.currentPlayStreak = 5; // females[0]: top priority to rest
+    for (const p of players.slice(1, 4)) p.stats.restCount = 5; // males[1..3]: low priority
+    players[5]!.stats.restCount = 5; // females[1]: low priority
+
+    const result = computeRandomModeRotation(players, 1, undefined, true);
+
+    expect(result.restingIds).toHaveLength(2);
+    const restingMaleCount = result.restingIds.filter((id) => players.find((p) => p.id === id)!.gender === 'male').length;
+    expect(restingMaleCount % 2).toBe(0);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { Player, Round, Team } from '../types';
+import type { Gender, Player, Round, Team } from '../types';
 import { shuffle } from '../utils/random';
 
 export interface RotationResult {
@@ -62,12 +62,91 @@ function pickResters(units: RotationUnit[], slotsAvailable: number): { playing: 
 }
 
 /**
+ * Gender-aware version of pickResters, used in random mode when gender
+ * rules are enabled.
+ *
+ * A round of courts can only be split into valid MM/FF/Mixed matchups if the
+ * PLAYING group has an even number of men (and therefore an even number of
+ * women too, since courts always contribute men/women in pairs of 0, 2, or
+ * 4). So: whoever RESTS must contain a number of men with the same parity as
+ * the total number of men overall — that's the one thing that keeps the
+ * remaining group splittable.
+ *
+ * We start from the fairness-only baseline (same as pickResters) and, if its
+ * parity is wrong, look for the single least-disruptive swap — one resting
+ * player traded for one playing player of the OPPOSITE gender — that fixes
+ * it. If no such swap exists (e.g. the gender ratio makes it impossible),
+ * we fall back to the fairness-only baseline: the pairing algorithm already
+ * degrades gracefully and flags a warning in that case.
+ */
+function pickRestersGenderAware(
+  units: RotationUnit[],
+  slotsAvailable: number,
+  genderOf: Map<string, Gender>,
+): { playing: string[]; resting: string[] } {
+  const voluntary = units.filter((u) => u.voluntary);
+  const rest = units.filter((u) => !u.voluntary);
+  const restingIds = voluntary.map((u) => u.id);
+
+  const nonVoluntaryPlayCount = Math.min(rest.length, Math.max(0, slotsAvailable));
+  const forcedRestCount = rest.length - nonVoluntaryPlayCount;
+
+  if (forcedRestCount > 0) {
+    const totalMaleCount = [...genderOf.values()].filter((g) => g === 'male').length;
+    const targetRestingMaleParity = totalMaleCount % 2;
+
+    const sorted = shuffle(rest)
+      .map((u) => ({ u, score: restPriority(u.restCount, u.playStreak, u.restedLastRound) }))
+      .sort((a, b) => b.score - a.score);
+
+    const chosen = sorted.slice(0, forcedRestCount);
+    const notChosen = sorted.slice(forcedRestCount);
+
+    const voluntaryMaleCount = voluntary.filter((u) => genderOf.get(u.id) === 'male').length;
+    const chosenMaleCount = chosen.filter((c) => genderOf.get(c.u.id) === 'male').length + voluntaryMaleCount;
+
+    if (chosenMaleCount % 2 !== targetRestingMaleParity) {
+      // Find the swap (remove one from `chosen`, add one from `notChosen` of
+      // the opposite gender) that costs the least in fairness terms.
+      let bestRemoveIdx = -1;
+      let bestAddIdx = -1;
+      let bestCost = Infinity;
+      chosen.forEach((toRemove, removeIdx) => {
+        notChosen.forEach((toAdd, addIdx) => {
+          if (genderOf.get(toRemove.u.id) === genderOf.get(toAdd.u.id)) return; // must differ to flip parity
+          const cost = toRemove.score - toAdd.score; // fairness given up by swapping
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestRemoveIdx = removeIdx;
+            bestAddIdx = addIdx;
+          }
+        });
+      });
+
+      if (bestRemoveIdx !== -1 && bestAddIdx !== -1) {
+        chosen.splice(bestRemoveIdx, 1, notChosen[bestAddIdx]!);
+      }
+      // If no valid swap exists, we keep the fairness-only baseline — this is
+      // the deliberate exception: when no arrangement can satisfy the gender
+      // rule, we proceed with the best available fairness-based choice.
+    }
+
+    chosen.forEach(({ u }) => restingIds.push(u.id));
+  }
+
+  const restingSet = new Set(restingIds);
+  const playingIds = units.filter((u) => !restingSet.has(u.id)).map((u) => u.id);
+  return { playing: playingIds, resting: restingIds };
+}
+
+/**
  * RANDOM MODE: the rotation unit is the individual player.
  */
 export function computeRandomModeRotation(
   players: Player[],
   courtsCount: number,
   previousRound: Round | undefined,
+  genderRulesEnabled: boolean,
 ): RotationResult {
   const maxSlots = courtsCount * 4;
   const units: RotationUnit[] = players.map((p) => ({
@@ -83,7 +162,13 @@ export function computeRandomModeRotation(
   let slotCandidate = Math.min(nonVoluntaryCount, maxSlots);
   slotCandidate -= slotCandidate % 4;
 
-  const { playing, resting: forcedPlusVoluntaryResting } = pickResters(units, slotCandidate);
+  const { playing, resting: forcedPlusVoluntaryResting } = genderRulesEnabled
+    ? pickRestersGenderAware(
+        units,
+        slotCandidate,
+        new Map(players.map((p) => [p.id, p.gender])),
+      )
+    : pickResters(units, slotCandidate);
 
   const courtsUsed = playing.length / 4;
   return { playingIds: playing, restingIds: forcedPlusVoluntaryResting, courtsUsed };

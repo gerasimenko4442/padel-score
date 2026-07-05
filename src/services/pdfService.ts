@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 import type { GameState, Gender } from '../types';
 import { sortPlayersForLeaderboard } from '../utils/statistics';
+import { PT_SANS_BOLD_BASE64, PT_SANS_REGULAR_BASE64 } from './fonts/ptSansFontData';
 
 type Rgb = [number, number, number];
 
@@ -18,16 +19,25 @@ const COLOR = {
 };
 
 const MARGIN = 14;
+const FONT = 'PTSans';
 
-// NOTE ON LANGUAGE: jsPDF's built-in fonts (Helvetica/Times/Courier) only
-// support the WinAnsi/Latin character set — they have no Cyrillic glyphs at
-// all, which is why the report previously rendered as garbled symbols for
-// Ukrainian text. All labels this file generates are English so the report
-// is guaranteed to render correctly with the built-in font (no font
-// embedding required). Player-entered names are reproduced as typed; if a
-// name uses Cyrillic characters it will still not render correctly here —
-// that would require embedding a Cyrillic-capable font, which is a separate,
-// larger change from "translate the labels."
+// Player names (and the game name) are user data and are very often
+// Cyrillic in this app's context. jsPDF's built-in fonts (Helvetica/Times/
+// Courier) only cover WinAnsi/Latin — no Cyrillic glyphs at all — which is
+// why those previously rendered as garbled symbols. PT Sans was designed
+// for unified Cyrillic + Latin typography and covers full Ukrainian
+// Cyrillic (і, ї, є, ґ) as well as Latin, so ONE font now handles every
+// string in this document — our own English labels and any Cyrillic names
+// alike — with no per-cell script detection needed. See fonts/ptSansFontData.ts
+// for provenance/licensing.
+function registerCyrillicFont(doc: jsPDF): void {
+  doc.addFileToVFS('PTSans-Regular.ttf', PT_SANS_REGULAR_BASE64);
+  doc.addFont('PTSans-Regular.ttf', FONT, 'normal');
+  doc.addFileToVFS('PTSans-Bold.ttf', PT_SANS_BOLD_BASE64);
+  doc.addFont('PTSans-Bold.ttf', FONT, 'bold');
+  doc.setFont(FONT, 'normal');
+}
+
 function genderLabel(g: Gender): string {
   return g === 'male' ? 'Male' : 'Female';
 }
@@ -47,7 +57,7 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
 
 function sectionTitle(doc: jsPDF, text: string, y: number): number {
   y = ensureSpace(doc, y, 16);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(13);
   doc.setTextColor(...COLOR.primaryDark);
   doc.text(text, MARGIN, y);
@@ -64,18 +74,19 @@ function sectionTitle(doc: jsPDF, text: string, y: number): number {
  */
 export function exportGameToPdf(state: GameState): void {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  registerCyrillicFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = MARGIN;
 
   // ---------------------------------------------------------------- Header
   doc.setFillColor(...COLOR.primary);
   doc.rect(0, 0, pageWidth, 26, 'F');
-  doc.setFont('helvetica', 'bold');
+  doc.setFont(FONT, 'bold');
   doc.setFontSize(20);
   doc.setTextColor(...COLOR.white);
   doc.text('Padel Score', MARGIN, 16);
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(FONT, 'normal');
   const dateStr = new Date(state.createdAt).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'long',
@@ -92,8 +103,8 @@ export function exportGameToPdf(state: GameState): void {
     head: [['#', 'Name', 'Gender']],
     body: state.players.map((p, i) => [String(i + 1), p.name, genderLabel(p.gender)]),
     theme: 'striped',
-    headStyles: { fillColor: COLOR.primary, textColor: COLOR.white },
-    styles: { fontSize: 9, textColor: COLOR.ink },
+    headStyles: { fillColor: COLOR.primary, textColor: COLOR.white, font: FONT },
+    styles: { fontSize: 9, textColor: COLOR.ink, font: FONT },
   });
   y = getFinalY(doc) + 10;
 
@@ -113,8 +124,8 @@ export function exportGameToPdf(state: GameState): void {
       String(p.stats.pointsScored),
     ]),
     theme: 'striped',
-    headStyles: { fillColor: COLOR.primaryDark, textColor: COLOR.white },
-    styles: { fontSize: 9, textColor: COLOR.ink },
+    headStyles: { fillColor: COLOR.primaryDark, textColor: COLOR.white, font: FONT },
+    styles: { fontSize: 9, textColor: COLOR.ink, font: FONT },
   });
   y = getFinalY(doc) + 10;
 
@@ -130,7 +141,7 @@ export function exportGameToPdf(state: GameState): void {
     doc.setFillColor(...podiumColors[i]!);
     doc.roundedRect(MARGIN, boxY, pageWidth - MARGIN * 2, 10, 2, 2, 'F');
     doc.setTextColor(...COLOR.white);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(10.5);
     doc.text(`${labels[i]}  -  ${p.name}`, MARGIN + 4, boxY + 6.8);
   });
@@ -144,7 +155,7 @@ export function exportGameToPdf(state: GameState): void {
 
   for (const round of completedRounds) {
     y = ensureSpace(doc, y, 14);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont(FONT, 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(...COLOR.ink);
     doc.text(`Round ${round.index}`, MARGIN, y);
@@ -166,14 +177,16 @@ export function exportGameToPdf(state: GameState): void {
             : '-',
       ]),
       theme: 'grid',
-      headStyles: { fillColor: COLOR.info, textColor: COLOR.white },
-      styles: { fontSize: 8.5, textColor: COLOR.ink },
+      headStyles: { fillColor: COLOR.info, textColor: COLOR.white, font: FONT },
+      styles: { fontSize: 8.5, textColor: COLOR.ink, font: FONT },
     });
     y = getFinalY(doc) + 7;
 
     if (round.restingPlayerIds.length > 0) {
       y = ensureSpace(doc, y, 7);
-      doc.setFont('helvetica', 'italic');
+      // Italic isn't embedded (only regular + bold) — a whole extra ~600kb
+      // font file isn't worth it for one small muted caption line.
+      doc.setFont(FONT, 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(...COLOR.inkMuted);
       doc.text(`Resting: ${round.restingPlayerIds.map(playerName).join(', ')}`, MARGIN, y);
@@ -203,15 +216,15 @@ export function exportGameToPdf(state: GameState): void {
       p.stats.mostFrequentOpponentId ? playerName(p.stats.mostFrequentOpponentId) : '-',
     ]),
     theme: 'striped',
-    headStyles: { fillColor: COLOR.primaryDark, textColor: COLOR.white, fontSize: 7.5 },
-    styles: { fontSize: 7.5, textColor: COLOR.ink },
+    headStyles: { fillColor: COLOR.primaryDark, textColor: COLOR.white, fontSize: 7.5, font: FONT },
+    styles: { fontSize: 7.5, textColor: COLOR.ink, font: FONT },
   });
 
   // ------------------------------------------------------------- Footer
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...COLOR.inkMuted);
     doc.text(`Padel Score - page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 8, {

@@ -1,0 +1,26 @@
+interface ProgressStepsProps {
+  total: number;
+  current: number;
+}
+
+/** A lightweight dot stepper so the organizer always knows where they are in the setup flow. */
+export function ProgressSteps({ total, current }: ProgressStepsProps) {
+  return (
+    <div
+      className="flex items-center justify-center gap-1.5"
+      role="progressbar"
+      aria-valuenow={current + 1}
+      aria-valuemin={1}
+      aria-valuemax={total}
+    >
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 rounded-full transition-all duration-300 ${
+            i === current ? 'w-6 bg-court' : i < current ? 'w-1.5 bg-court/40' : 'w-1.5 bg-line'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}

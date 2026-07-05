@@ -110,7 +110,7 @@ export function CourtMatchCard({ match, players, gameMode, lineupEditable, score
           gameMode={gameMode}
           isWinner={match.winner === 'A'}
           isLoser={match.winner === 'B'}
-          editable={lineupEditable && !isEditingScore}
+          editable={lineupEditable}
         />
         <div className="flex items-center gap-2 px-1">
           <div className="flex-1 h-px bg-line" />
@@ -124,7 +124,7 @@ export function CourtMatchCard({ match, players, gameMode, lineupEditable, score
           gameMode={gameMode}
           isWinner={match.winner === 'B'}
           isLoser={match.winner === 'A'}
-          editable={lineupEditable && !isEditingScore}
+          editable={lineupEditable}
         />
 
         <div className="pt-1">

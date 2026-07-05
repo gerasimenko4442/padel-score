@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Pencil, Trophy } from 'lucide-react';
+import { Check, GripVertical, Pencil, Trophy } from 'lucide-react';
 import type { GameMode, Match, Player } from '../types';
 import { Card } from './ui/Card';
 import { ScoreStepper } from './ui/ScoreStepper';
@@ -44,11 +44,12 @@ function TeamRow({ teamId, playerIds, players, gameMode, isWinner, isLoser, edit
 
   const content = (
     <div className={`flex items-center gap-1.5 rounded-xl px-2 py-2 ${rowTone} transition-colors duration-200`}>
+      {gameMode === 'fixed' && editable && <GripVertical size={15} className="text-ink-muted/50 shrink-0" />}
       <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
         {gameMode === 'random'
           ? teamPlayers.map((p) => (
               <SwappableSlot key={p.id} id={p.id} disabled={!editable}>
-                <PlayerChip player={p} />
+                <PlayerChip player={p} showGrip={editable} />
               </SwappableSlot>
             ))
           : teamPlayers.map((p, i) => (
@@ -77,18 +78,21 @@ interface CourtMatchCardProps {
   match: Match;
   players: Player[];
   gameMode: GameMode;
-  /** Whether the round can still be edited (drag-and-drop, score entry). False once the round is completed. */
-  editable: boolean;
+  /** Whether teams can still be drag-and-dropped. False once any match in the round has a score. */
+  lineupEditable: boolean;
+  /** Whether THIS match's score can still be entered/edited. Independent per court —
+   *  only becomes false once the whole round is completed and advanced past. */
+  scoreEditable: boolean;
   onSubmitScore: (matchId: string, scoreA: number, scoreB: number) => void;
 }
 
-export function CourtMatchCard({ match, players, gameMode, editable, onSubmitScore }: CourtMatchCardProps) {
+export function CourtMatchCard({ match, players, gameMode, lineupEditable, scoreEditable, onSubmitScore }: CourtMatchCardProps) {
   const isScored = match.winner !== null;
   const [isEditingScore, setIsEditingScore] = useState(!isScored);
   const [draftA, setDraftA] = useState(match.scoreA ?? 0);
   const [draftB, setDraftB] = useState(match.scoreB ?? 0);
 
-  const showEntry = editable && isEditingScore;
+  const showEntry = scoreEditable && isEditingScore;
 
   const handleConfirm = () => {
     onSubmitScore(match.id, draftA, draftB);
@@ -106,7 +110,7 @@ export function CourtMatchCard({ match, players, gameMode, editable, onSubmitSco
           gameMode={gameMode}
           isWinner={match.winner === 'A'}
           isLoser={match.winner === 'B'}
-          editable={editable && !isEditingScore}
+          editable={lineupEditable && !isEditingScore}
         />
         <div className="flex items-center gap-2 px-1">
           <div className="flex-1 h-px bg-line" />
@@ -120,7 +124,7 @@ export function CourtMatchCard({ match, players, gameMode, editable, onSubmitSco
           gameMode={gameMode}
           isWinner={match.winner === 'B'}
           isLoser={match.winner === 'A'}
-          editable={editable && !isEditingScore}
+          editable={lineupEditable && !isEditingScore}
         />
 
         <div className="pt-1">
@@ -143,7 +147,7 @@ export function CourtMatchCard({ match, players, gameMode, editable, onSubmitSco
               <span className="font-display font-extrabold text-2xl tabular-nums text-ink">
                 {match.scoreA ?? '–'} : {match.scoreB ?? '–'}
               </span>
-              {editable && (
+              {scoreEditable && (
                 <button
                   type="button"
                   onClick={() => setIsEditingScore(true)}

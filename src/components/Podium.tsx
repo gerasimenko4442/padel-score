@@ -7,13 +7,16 @@ interface PodiumProps {
 }
 
 const STEP_STYLES = [
-  { order: 'order-2', height: 'h-28', tone: 'bg-gold', label: '1' },
-  { order: 'order-1', height: 'h-20', tone: 'bg-silver', label: '2' },
-  { order: 'order-3', height: 'h-14', tone: 'bg-bronze', label: '3' },
+  { height: 'h-20', tone: 'bg-silver', label: '2' }, // top3[0] = 2nd place (left)
+  { height: 'h-28', tone: 'bg-gold', label: '1' }, // top3[1] = 1st place (middle, tallest)
+  { height: 'h-14', tone: 'bg-bronze', label: '3' }, // top3[2] = 3rd place (right)
 ] as const;
 
 export function Podium({ ranked }: PodiumProps) {
-  const top3 = [ranked[1], ranked[0], ranked[2]]; // rendered left-to-right as 2nd, 1st, 3rd
+  // Deliberately built in this exact order — 2nd, then 1st, then 3rd — so the
+  // array order already matches the desired left-to-right podium layout with
+  // no extra CSS reordering needed.
+  const top3 = [ranked[1], ranked[0], ranked[2]];
 
   return (
     <div className="flex items-end justify-center gap-2 px-2 pt-6 pb-2">
@@ -22,7 +25,7 @@ export function Podium({ ranked }: PodiumProps) {
         const style = STEP_STYLES[i]!;
         if (!player) return <div key={i} className="flex-1 max-w-[100px]" />;
         return (
-          <div key={player.id} className={`flex flex-col items-center flex-1 max-w-[110px] ${style.order}`}>
+          <div key={player.id} className="flex flex-col items-center flex-1 max-w-[110px]">
             {i === 1 && <Crown size={22} className="text-gold mb-1" fill="currentColor" />}
             <div className="flex items-center gap-1 mb-1.5 max-w-full">
               <GenderDot gender={player.gender} size={7} />

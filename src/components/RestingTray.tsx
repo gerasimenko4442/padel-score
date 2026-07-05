@@ -16,7 +16,7 @@ export function RestingTray({ restingPlayerIds, players, fixedTeams, gameMode, e
     return (
       <div className="flex items-center gap-2 text-ink-muted text-sm px-1 py-2">
         <Coffee size={16} />
-        <span>Цього раунду відпочивають усі грають — вільних немає</span>
+        <span>Цього раунду грають усі — ніхто не відпочиває</span>
       </div>
     );
   }
@@ -34,7 +34,7 @@ export function RestingTray({ restingPlayerIds, players, fixedTeams, gameMode, e
               node: (
                 <span className="inline-flex items-center gap-1">
                   {teamPlayers.map((p) => (
-                    <PlayerChip key={p.id} player={p} />
+                    <PlayerChip key={p.id} player={p} showGrip={editable} />
                   ))}
                 </span>
               ),
@@ -42,7 +42,7 @@ export function RestingTray({ restingPlayerIds, players, fixedTeams, gameMode, e
           })
       : players
           .filter((p) => restingSet.has(p.id))
-          .map((p) => ({ id: p.id, node: <PlayerChip player={p} /> }));
+          .map((p) => ({ id: p.id, node: <PlayerChip player={p} showGrip={editable} /> }));
 
   return (
     <div className="rounded-2xl border border-dashed border-line px-3 py-3">

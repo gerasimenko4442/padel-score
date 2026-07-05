@@ -48,7 +48,12 @@ export function generateNextRound(state: GameState): RoundGenerationOutcome {
     return { round, hasGenderViolation: false };
   }
 
-  const rotation = computeRandomModeRotation(state.players, state.settings.courtsCount, previousRound);
+  const rotation = computeRandomModeRotation(
+    state.players,
+    state.settings.courtsCount,
+    previousRound,
+    state.settings.genderRulesEnabled,
+  );
   const playingPlayers = state.players.filter((p) => rotation.playingIds.includes(p.id));
   if (playingPlayers.length < 4) {
     throw new Error('Недостатньо гравців, щоб сформувати раунд.');
